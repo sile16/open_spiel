@@ -21,6 +21,12 @@ from open_spiel.python.algorithms.alpha_zero import alpha_zero
 from open_spiel.python.algorithms.alpha_zero import model as model_lib
 from open_spiel.python.utils import spawn
 
+try:
+  import wandb
+  WANDB_AVAILABLE = True
+except ImportError:
+  WANDB_AVAILABLE = False
+
 flags.DEFINE_string("game", "connect_four", "Name of the game.")
 flags.DEFINE_integer("uct_c", 2, "UCT's exploration constant.")
 flags.DEFINE_integer("max_simulations", 300, "How many simulations to run.")
@@ -55,6 +61,9 @@ flags.DEFINE_integer(
 flags.DEFINE_integer("max_steps", 0, "How many learn steps before exiting.")
 flags.DEFINE_bool("quiet", True, "Don't show the moves as they're played.")
 flags.DEFINE_bool("verbose", False, "Show the MCTS stats of possible moves.")
+flags.DEFINE_bool("use_wandb", False, "Enable Weights & Biases logging.")
+flags.DEFINE_string("wandb_project", "alphazero", "W&B project name.")
+flags.DEFINE_string("wandb_run_name", None, "W&B run name (auto-generated if None).")
 
 FLAGS = flags.FLAGS
 
@@ -90,7 +99,21 @@ def main(unused_argv):
 
       quiet=FLAGS.quiet,
   )
-  alpha_zero.alpha_zero(config)
+
+  # Initialize wandb if enabled
+  wandb_run = None
+  if FLAGS.use_wandb:
+    if not WANDB_AVAILABLE:
+      print("Warning: wandb not installed. Run 'pip install wandb' to enable.")
+    else:
+      wandb_run = wandb.init(
+          project=FLAGS.wandb_project,
+          name=FLAGS.wandb_run_name or f"{FLAGS.game}-{FLAGS.nn_model}",
+          config=config._asdict(),
+      )
+      print(f"Wandb run initialized: {wandb_run.url}")
+
+  alpha_zero.alpha_zero(config, wandb_run=wandb_run)
 
 
 if __name__ == "__main__":

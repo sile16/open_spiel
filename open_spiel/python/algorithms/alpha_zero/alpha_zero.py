@@ -324,7 +324,7 @@ def evaluator(*, game, config, logger, queue):
 
 
 @watcher
-def learner(*, game, config, actors, evaluators, broadcast_fn, logger):
+def learner(*, game, config, actors, evaluators, broadcast_fn, logger, wandb_run=None):
   """A learner that consumes the replay buffer and trains the network."""
   logger.also_to_stdout = True
   replay_buffer = Buffer(config.replay_buffer_size)
@@ -489,6 +489,24 @@ def learner(*, game, config, actors, evaluators, broadcast_fn, logger):
             "hit_rate": 0,
         },
     })
+
+    # Log to wandb if available
+    if wandb_run is not None:
+      wandb_run.log({
+          "step": step,
+          "total_states": replay_buffer.total_seen,
+          "states_per_s": num_states / seconds,
+          "states_per_s_actor": num_states / (config.actors * seconds),
+          "total_trajectories": total_trajectories,
+          "game_length_mean": game_lengths.mean if game_lengths.count > 0 else 0,
+          "loss/policy": float(losses.policy),
+          "loss/value": float(losses.value),
+          "loss/l2reg": float(losses.l2),
+          "loss/total": float(losses.total),
+          "buffer_size": len(replay_buffer),
+          "eval/level_0": sum(evals[0].data) / len(evals[0]) if evals[0] else 0,
+      })
+
     logger.print()
 
     if config.max_steps > 0 and step >= config.max_steps:
@@ -497,7 +515,7 @@ def learner(*, game, config, actors, evaluators, broadcast_fn, logger):
     broadcast_fn(save_path)
 
 
-def alpha_zero(config: Config):
+def alpha_zero(config: Config, wandb_run=None):
   """Start all the worker processes for a full alphazero setup."""
   game = pyspiel.load_game(config.game)
   config = config._replace(
@@ -543,7 +561,7 @@ def alpha_zero(config: Config):
 
   try:
     learner(game=game, config=config, actors=actors,  # pylint: disable=missing-kwoa
-            evaluators=evaluators, broadcast_fn=broadcast)
+            evaluators=evaluators, broadcast_fn=broadcast, wandb_run=wandb_run)
   except (KeyboardInterrupt, EOFError):
     print("Caught a KeyboardInterrupt, stopping early.")
   finally:

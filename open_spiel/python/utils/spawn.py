@@ -24,7 +24,11 @@ Empty = queue.Empty
 # https://github.com/pytest-dev/pytest-flask/issues/104#issuecomment-577908228
 # and for more details see
 # https://docs.python.org/3/library/multiprocessing.html#contexts-and-start-methods
-multiprocessing.set_start_method("fork")
+# Use 'spawn' for GPU/CUDA compatibility (fork doesn't work with CUDA)
+try:
+  multiprocessing.set_start_method("spawn")
+except RuntimeError:
+  pass  # Already set
 
 
 # For compatibility so that it works inside Google.
